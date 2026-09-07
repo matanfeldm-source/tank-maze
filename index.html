@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>קרב טנקים במבוך</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+
+<div id="hud">
+  <div class="score">
+    <span class="dot" style="background:#3ec6f0"></span><span id="n1">אתה</span>
+    <b id="sp">0</b><span style="color:#4a5d70">:</span><b id="sb">0</b>
+    <span id="n2">בוט</span><span class="dot" style="background:#f2704f"></span>
+  </div>
+  <div id="buffs"></div>
+  <div class="spacer"></div>
+  <button class="iconbtn" id="pause" title="השהיה">⏸</button>
+  <button class="iconbtn" id="legend" title="פאוור-אפים">📖</button>
+  <button class="iconbtn" id="theme" title="ערכת נושא">🌙</button>
+  <button class="iconbtn" id="full" title="מסך מלא">⛶</button>
+  <button class="iconbtn" id="sound" title="צליל">🔊</button>
+  <button class="iconbtn" id="restart" title="משחק חדש">↻</button>
+</div>
+
+<div id="wrap">
+  <div class="side" id="sideL"></div>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="overlay">
+      <h1>קרב טנקים במבוך</h1>
+      <p id="sub">פגיעה אחת מכריעה סיבוב. הכדורים מנתרים מהקירות — גם שלך. הראשון ל‑5 לוקח את הקרב.</p>
+      <div class="row" id="modeRow">
+        <button class="opt on" data-m="bot">נגד הבוט</button>
+        <button class="opt" data-m="duo">שני שחקנים</button>
+        <button class="opt" data-m="online">אונליין</button>
+      </div>
+      <div id="onlinePanel" class="hidden">
+        <div class="row" id="onlineHostBox">
+          <button class="btn" id="createLinkBtn" type="button">צור קישור הזמנה</button>
+        </div>
+        <div id="onlineLinkBox" class="hidden">
+          <div class="row"><input id="inviteLink" type="text" readonly></div>
+          <div class="row"><button class="opt" id="copyLinkBtn" type="button">העתק קישור</button></div>
+          <p class="onlineStatus" id="onlineStatus">ממתין ליריב להצטרף…</p>
+        </div>
+        <div id="onlineJoinBox">
+          <div class="row"><input id="joinCodeInput" type="text" placeholder="הדביקו כאן קישור הזמנה"></div>
+          <div class="row"><button class="opt" id="joinBtn" type="button">הצטרפות</button></div>
+        </div>
+        <p class="onlineStatus hidden" id="onlineError"></p>
+      </div>
+      <div class="row" id="diffRow">
+        <button class="opt" data-d="0">מתאמן</button>
+        <button class="opt on" data-d="1">לוחם</button>
+        <button class="opt" data-d="2">אלוף</button>
+      </div>
+      <div class="row" id="winRow">
+        <button class="opt" data-w="3">עד 3</button>
+        <button class="opt on" data-w="5">עד 5</button>
+        <button class="opt" data-w="7">עד 7</button>
+      </div>
+      <div class="row" id="mazeRow">
+        <button class="opt on" data-z="maze">מבוך</button>
+        <button class="opt" data-z="open">זירה פתוחה</button>
+        <button class="opt" data-z="tight">מסדרונות</button>
+      </div>
+      <div class="row" id="colorRow"></div>
+      <button class="btn" id="start">התחלת קרב</button>
+      <div class="row">
+        <button class="linkbtn" id="openLegend" type="button">מה הפאוור-אפים? 📖</button>
+        <button class="linkbtn" id="openStats" type="button">הסטטיסטיקות שלי 📊</button>
+      </div>
+      <div class="keys" id="keys"></div>
+    </div>
+
+    <div id="introModal" class="hidden">
+      <div class="legendCard">
+        <div class="legendHead">
+          <h2>ברוכים הבאים 👋</h2>
+          <button class="iconbtn" id="closeIntro" title="סגירה">✕</button>
+        </div>
+        <div class="introBody" id="introBody"></div>
+        <button class="btn" id="introGotIt" type="button">הבנתי, קדימה!</button>
+      </div>
+    </div>
+
+    <div id="statsModal" class="hidden">
+      <div class="legendCard">
+        <div class="legendHead">
+          <h2>הסטטיסטיקות שלי</h2>
+          <button class="iconbtn" id="closeStats" title="סגירה">✕</button>
+        </div>
+        <div class="statsGrid" id="statsGrid"></div>
+        <button class="linkbtn" id="resetStats" type="button">איפוס סטטיסטיקות</button>
+      </div>
+    </div>
+
+    <div id="pauseOverlay" class="hidden">
+      <h1>השהיה</h1>
+      <div class="row">
+        <button class="btn" id="resumeBtn">המשך</button>
+      </div>
+      <div class="row">
+        <button class="opt" id="pauseLegend">פאוור-אפים 📖</button>
+        <button class="opt" id="pauseQuit">חזרה לתפריט</button>
+      </div>
+    </div>
+
+    <div id="legendModal" class="hidden">
+      <div class="legendCard">
+        <div class="legendHead">
+          <h2>פאוור-אפים</h2>
+          <button class="iconbtn" id="closeLegend" title="סגירה">✕</button>
+        </div>
+        <div class="legendGrid" id="legendGrid"></div>
+      </div>
+    </div>
+  </div>
+  <div class="side" id="sideR"></div>
+</div>
+
+<div id="padsBottom">
+  <div class="pad two" id="pad2">
+    <div class="stickzone"><div class="knob"></div></div>
+    <div class="padbtns">
+      <button class="abtn fire">ירי</button>
+      <button class="abtn mine">מוקש</button>
+    </div>
+  </div>
+  <div class="pad" id="pad1">
+    <div class="padbtns">
+      <button class="abtn fire">ירי</button>
+      <button class="abtn mine">מוקש</button>
+    </div>
+    <div class="stickzone"><div class="knob"></div></div>
+  </div>
+</div>
+
+<footer id="foot">פאוור‑אפים צצים במבוך כל כמה שניות — מי שמגיע ראשון לוקח.</footer>
+
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/maze.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/input.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/render.js"></script>
+<script src="js/net.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
