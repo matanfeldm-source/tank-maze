@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two Phone Speaker</title>
+<style>
+  :root { color-scheme: dark; --bg:#111; --card:#1d1d22; --fg:#f3f3f5; --mut:#9a9aa5; --acc:#4f8cff; --ok:#3ecf8e; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--fg); font:16px/1.4 system-ui,sans-serif; }
+  main { max-width:480px; margin:0 auto; }
+  h1 { font-size:1.4rem; margin:.2em 0 .1em; }
+  p.sub { color:var(--mut); margin-top:0; }
+  .card { background:var(--card); border-radius:14px; padding:16px; margin:14px 0; }
+  button, .btn { display:block; width:100%; padding:14px; margin:8px 0; border:0; border-radius:10px;
+    background:var(--acc); color:#fff; font-size:1rem; font-weight:600; text-align:center; cursor:pointer; }
+  button.alt { background:#33343c; }
+  input[type=text] { width:100%; padding:14px; font-size:1.6rem; letter-spacing:.3em; text-align:center;
+    border-radius:10px; border:1px solid #444; background:#0c0c0f; color:var(--fg); }
+  input[type=range] { width:100%; }
+  .code { font-size:3rem; font-weight:800; letter-spacing:.2em; text-align:center; color:var(--ok); }
+  .status { color:var(--mut); text-align:center; min-height:1.4em; }
+  .status.ok { color:var(--ok); }
+  video { width:100%; border-radius:10px; background:#000; max-height:60vh; }
+  .hide { display:none; }
+  small { color:var(--mut); }
+</style>
+</head>
+<body>
+<main>
+  <h1>🔊 Two Phone Speaker</h1>
+  <p class="sub">One phone = screen. The other = speaker.</p>
+
+  <!-- Step 1: pick role -->
+  <section id="roleView" class="card">
+    <button id="btnSpeaker">🔊 This phone is the SPEAKER</button>
+    <button id="btnScreen" class="alt">📺 This phone is the SCREEN</button>
+    <small>Both phones need internet (same Wi-Fi gives the lowest delay).</small>
+  </section>
+
+  <!-- Speaker -->
+  <section id="speakerView" class="card hide">
+    <p>On the screen phone, tap <b>SCREEN</b> and enter this code:</p>
+    <div class="code" id="code">----</div>
+    <div class="status" id="spkStatus">Setting up…</div>
+    <label>Volume <input type="range" id="vol" min="0" max="1" step="0.01" value="1"></label>
+    <small>Turn the phone's volume all the way up and keep this screen open.</small>
+    <audio id="remoteAudio" autoplay playsinline></audio>
+  </section>
+
+  <!-- Screen -->
+  <section id="screenView" class="card hide">
+    <p>Enter the code shown on the speaker phone:</p>
+    <input type="text" id="codeInput" inputmode="numeric" maxlength="4" placeholder="0000">
+    <label class="btn alt" for="file">🎬 Choose a video file</label>
+    <input type="file" id="file" accept="video/*,audio/*" class="hide">
+    <button id="btnConnect">Connect &amp; play</button>
+    <div class="status" id="scrStatus"></div>
+    <video id="video" controls playsinline></video>
+    <small>This phone's own sound is muted automatically — the audio comes out of the speaker phone.</small>
+  </section>
+</main>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const PREFIX = 'twophonespk-';
+const show = id => { ['roleView','speakerView','screenView'].forEach(v => $(v).classList.toggle('hide', v !== id)); };
+const setStatus = (el, msg, ok) => { el.textContent = msg; el.classList.toggle('ok', !!ok); };
+
+async function keepAwake() {
+  try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+
+/* ---------------- SPEAKER ---------------- */
+$('btnSpeaker').onclick = () => {
+  show('speakerView');
+  keepAwake();
+  startSpeaker();
+};
+
+function startSpeaker(attempt = 0) {
+  const code = String(Math.floor(1000 + Math.random() * 9000));
+  const peer = new Peer(PREFIX + code);
+  const status = $('spkStatus');
+  peer.on('open', () => {
+    $('code').textContent = code;
+    setStatus(status, 'Waiting for the screen phone…');
+  });
+  peer.on('error', err => {
+    if (err.type === 'unavailable-id' && attempt < 5) return startSpeaker(attempt + 1);
+    setStatus(status, 'Error: ' + err.type);
+  });
+  peer.on('call', call => {
+    call.answer();
+    call.on('stream', stream => {
+      const a = $('remoteAudio');
+      a.srcObject = stream;
+      a.play().catch(() => {});
+      setStatus(status, '✅ Connected — playing audio', true);
+    });
+    call.on('close', () => setStatus(status, 'Screen phone disconnected. Waiting…'));
+  });
+  $('vol').oninput = e => { $('remoteAudio').volume = +e.target.value; };
+}
+
+/* ---------------- SCREEN ---------------- */
+$('btnScreen').onclick = () => { show('screenView'); keepAwake(); };
+
+$('file').onchange = e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  $('video').src = URL.createObjectURL(f);
+  setStatus($('scrStatus'), 'Loaded: ' + f.name);
+};
+
+$('btnConnect').onclick = async () => {
+  const status = $('scrStatus');
+  const code = $('codeInput').value.trim();
+  const video = $('video');
+  if (code.length !== 4) return setStatus(status, 'Enter the 4-digit code.');
+  if (!video.src) return setStatus(status, 'Choose a video file first.');
+
+  // Route the video's audio into a WebRTC stream instead of this phone's speaker.
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AC();
+  await ctx.resume();
+  if (!video._src) {
+    video._src = ctx.createMediaElementSource(video);
+    video._dest = ctx.createMediaStreamDestination();
+    video._src.connect(video._dest);          // NOT connected to ctx.destination => silent locally
+  }
+
+  setStatus(status, 'Connecting…');
+  const peer = new Peer();
+  peer.on('error', err => setStatus(status, 'Error: ' + err.type + (err.type === 'peer-unavailable' ? ' (wrong code?)' : '')));
+  peer.on('open', () => {
+    const call = peer.call(PREFIX + code, video._dest.stream);
+    call.on('error', () => setStatus(status, 'Call failed.'));
+    call.on('close', () => setStatus(status, 'Disconnected.'));
+    // Give the connection a moment, then start playback.
+    const t = setInterval(() => {
+      const pc = call.peerConnection;
+      if (pc && (pc.connectionState === 'connected' || pc.iceConnectionState === 'connected')) {
+        clearInterval(t);
+        setStatus(status, '✅ Connected — press play. Sound comes from the other phone.', true);
+        video.play().catch(() => {});
+      }
+    }, 300);
+  });
+};
+</script>
+</body>
+</html>
